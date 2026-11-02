@@ -150,7 +150,13 @@ function buildDeck(key){
       <div class="ctl"><label class="k" for="rate${key}">Speed</label><select id="rate${key}"><option value="1">1×</option></select></div>
     </div>`;
   const d = decks[key] = {key, el, player:null, ready:false, vol:1, gain:key==='A'?1:0, id:null};
-  el.querySelector('.load').addEventListener('submit', e=>{e.preventDefault(); const id=parseId($('#in'+key).value); if(id){loadDeck(d,id,true);} else setStatus('That doesn\'t look like a YouTube link.');});
+  el.querySelector('.load').addEventListener('submit', e=>{e.preventDefault(); const id=parseId($('#in'+key).value);
+    if(!id){ setStatus('That doesn\'t look like a YouTube link.'); return; }
+    // Play straight away only if this is the live deck or nothing else is playing; otherwise prime it.
+    const otherBusy = isPlaying(other(d));
+    loadDeck(d,id,!otherBusy || live()===d);
+    if(otherBusy && live()!==d) setStatus(`Deck ${key}: buffering, will be ready to mix.`);
+  });
   el.querySelector('.play').onclick = ()=> togglePlay(d);
   el.querySelector('.cue').onclick = ()=> d.ready && d.player.seekTo(0,true);
   el.querySelector('.back').onclick = ()=> d.ready && d.player.seekTo(d.player.getCurrentTime()-10,true);
@@ -166,11 +172,23 @@ const other = d => d===A?B:A;
 function applyVol(d){ if(d.ready) d.player.setVolume(Math.round(d.vol*d.gain*100)); }
 function isPlaying(d){ return d.ready && d.player.getPlayerState()===YT.PlayerState.PLAYING; }
 function togglePlay(d){ if(!d.ready||!d.id) return; isPlaying(d)?d.player.pauseVideo():d.player.playVideo(); }
+/* autoplay=true plays right away; otherwise the deck "primes": it plays muted
+   until YouTube has buffered and actually started, then pauses at 0:00 so it
+   starts instantly when the mix begins. */
 function loadDeck(d,id,autoplay){
-  d.id = id;
+  d.id = id; d.primed = false;
   if(!d.ready){ d.pending={id,autoplay}; return; }
-  autoplay ? d.player.loadVideoById(id) : d.player.cueVideoById(id);
   $('#rate'+d.key).value = '1';
+  if(autoplay){ d.priming=false; d.player.unMute(); d.player.loadVideoById(id); return; }
+  d.priming = true;
+  d.player.mute();
+  d.player.loadVideoById(id);
+}
+function finishPriming(d){
+  d.priming = false; d.primed = true;
+  d.player.pauseVideo();
+  d.player.seekTo(0,true);
+  d.player.unMute(); applyVol(d);
 }
 
 window.onYouTubeIframeAPIReady = () => {
@@ -180,7 +198,7 @@ window.onYouTubeIframeAPIReady = () => {
       playerVars:{playsinline:1, rel:0, modestbranding:1},
       events:{
         onReady: ()=>{ d.ready=true; applyVol(d); if(d.pending){loadDeck(d,d.pending.id,d.pending.autoplay); d.pending=null;} },
-        onStateChange: e=>{ if(e.data===YT.PlayerState.PLAYING) fillRates(d); if(e.data===YT.PlayerState.ENDED && live()===d && !mixing) mixNow(); },
+        onStateChange: e=>{ if(e.data===YT.PlayerState.PLAYING){ fillRates(d); if(d.priming){ finishPriming(d); return; } } if(e.data===YT.PlayerState.ENDED && live()===d && !mixing) mixNow(); },
         onError: e=>{ setStatus(`Deck ${d.key}: YouTube refused this video (error ${e.data}). Embedding may be disabled by the uploader.`); if(live()===d) mixNow(); }
       }
     });
@@ -212,7 +230,18 @@ function mixNow(){
   const from=live(), to=other(from);
   if(!to.id){ if(!cueNext(to)) { setStatus('Nothing to mix into. Load deck '+to.key+' or add to the queue.'); return; } }
   cancelFade(); mixing=true;
+  if(to.priming){ to.priming=false; to.player.unMute(); }
   to.player.playVideo();
+  setStatus(to.primed ? `Mixing ${from.key} → ${to.key}` : `Waiting for deck ${to.key} to start…`);
+  // Don't move the crossfader until the incoming deck is actually playing (max 12 s wait).
+  const waitStart=performance.now();
+  fadeTimer=setInterval(()=>{
+    if(!isPlaying(to) && performance.now()-waitStart<12000) return;
+    clearInterval(fadeTimer); fadeTimer=null; startFade(from,to);
+  },50);
+}
+function startFade(from,to){
+  mixing=true; to.primed=false;
   const start=xf, target=to===B?1:0, dur=+$('#fade').value*1000, t0=performance.now();
   setStatus(`Mixing ${from.key} → ${to.key} over ${dur/1000}s`);
   fadeTimer=setInterval(()=>{
@@ -252,7 +281,7 @@ setInterval(()=>{
   for(const d of [A,B]){
     const el=d.el, playing=isPlaying(d);
     el.classList.toggle('live', live()===d && playing);
-    const st=el.querySelector('.state'); st.textContent=!d.id?'empty':playing?(live()===d?'live':'playing'):'cued'; st.classList.toggle('on',playing);
+    const st=el.querySelector('.state'); st.textContent=!d.id?'empty':d.priming?'buffering':playing?(live()===d?'live':'playing'):d.primed?'ready':'cued'; st.classList.toggle('on',playing&&!d.priming);
     el.querySelector('.play').textContent=playing?'Pause':'Play';
     if(!d.ready||!d.id) continue;
     const t=d.player.getCurrentTime()||0, dur=d.player.getDuration()||0;
