@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tube Decks</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700&family=Manrope:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: two decks flanking a center mixer strip, queue underneath. */
+:root{
+  --bg:#eef0f4; --panel:#ffffff; --panel-2:#e3e6ee; --fg:#161a24; --muted:#5d6475;
+  --line:#cfd4df; --a:#e0431f; --b:#1d7fd6; --ok:#1f9d55;
+  --display:"Unbounded","Arial Black",system-ui,sans-serif;
+  --body:"Manrope",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#0f1117; --panel:#181b24; --panel-2:#222633; --fg:#e9ecf3; --muted:#9097a8;
+  --line:#2c3141; --a:#ff6a3d; --b:#4aa8ff; --ok:#3ccf7d; color-scheme:dark;}}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--fg);font:15px/1.5 var(--body);
+  padding:24px max(16px,env(safe-area-inset-right,0px)) 40px max(16px,env(safe-area-inset-left,0px))}
+.wrap{max-width:1180px;margin:0 auto;display:grid;gap:20px}
+header{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap}
+h1{font:700 26px/1 var(--display);letter-spacing:-.02em;margin:0}
+h1 span{color:var(--a)} h1 em{font-style:normal;color:var(--b)}
+.hint{color:var(--muted);font-size:13px}
+.board{display:grid;grid-template-columns:1fr 220px 1fr;gap:16px;align-items:start}
+@media (max-width:900px){.board{grid-template-columns:1fr}}
+.deck,.mixer,.queue{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;display:grid;gap:12px;min-width:0}
+.deck{border-top:4px solid var(--c)}
+.deck.live{box-shadow:0 0 0 2px var(--c)}
+.deck-head{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.tag{font:700 13px var(--display);color:var(--c);letter-spacing:.06em}
+.state{font:600 11px var(--mono);text-transform:uppercase;letter-spacing:.08em;padding:3px 8px;border-radius:99px;background:var(--panel-2);color:var(--muted)}
+.state.on{background:var(--c);color:#fff}
+.screen{position:relative;width:100%;aspect-ratio:16/9;max-width:100%;background:#000;border-radius:6px;overflow:hidden}
+.screen>div,.screen iframe{position:absolute;inset:0;width:100%;height:100%}
+.title{font-weight:700;min-height:1.5em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.time{font:600 13px var(--mono);font-variant-numeric:tabular-nums;color:var(--muted);display:flex;justify-content:space-between}
+.time .left{color:var(--fg)}
+.bar{height:10px;background:var(--panel-2);border-radius:5px;cursor:pointer;position:relative;overflow:hidden}
+.bar i{position:absolute;inset:0 auto 0 0;width:0;background:var(--c)}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.row input[type=text]{flex:1;min-width:0}
+input[type=text],select{font:inherit;color:var(--fg);background:var(--panel-2);border:1px solid var(--line);border-radius:6px;padding:8px 10px}
+button{font:700 13px var(--body);color:var(--fg);background:var(--panel-2);border:1px solid var(--line);border-radius:6px;padding:8px 12px;cursor:pointer}
+button:hover{border-color:var(--muted)}
+button.primary{background:var(--c,var(--fg));color:#fff;border-color:transparent}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--b);outline-offset:2px}
+label.k{font:600 11px var(--mono);text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.ctl{display:grid;gap:4px}
+input[type=range]{width:100%;accent-color:var(--c,var(--fg))}
+.mixer{text-align:center}
+.mixer h2,.queue h2{font:700 13px var(--display);letter-spacing:.06em;margin:0}
+.xf-labels{display:flex;justify-content:space-between;font:700 13px var(--display)}
+.xf-labels b:first-child{color:var(--a)} .xf-labels b:last-child{color:var(--b)}
+#xf{accent-color:var(--fg)}
+.toggle{display:flex;align-items:center;justify-content:center;gap:8px;font-weight:600}
+.status{font:12px var(--mono);color:var(--muted);min-height:3em}
+.queue ol{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.queue li{display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--panel-2);border-radius:6px;min-width:0}
+.queue li .n{font:600 12px var(--mono);color:var(--muted);width:1.6em}
+.queue li .t{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.queue li button{padding:4px 8px;font-size:12px}
+.empty{color:var(--muted);font-size:14px;padding:8px 0}
+#warn{background:var(--panel);border:1px solid var(--a);border-radius:8px;padding:10px 14px;font-size:14px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Tube<span>/</span><em>Decks</em></h1>
+    <div class="hint">Paste YouTube or YouTube Music links. Space = play/pause live deck · M = mix now</div>
+  </header>
+  <div id="warn" hidden>Opened as a local file, YouTube may refuse to play. Serve the folder instead: <code>python3 -m http.server 8000</code> and open <code>http://localhost:8000/tube-decks.html</code>.</div>
+
+  <div class="board">
+    <section class="deck" id="deckA" style="--c:var(--a)"></section>
+
+    <section class="mixer">
+      <h2>MIXER</h2>
+      <div class="ctl">
+        <div class="xf-labels"><b>A</b><b>B</b></div>
+        <input type="range" id="xf" min="0" max="1000" value="0" aria-label="Crossfader">
+      </div>
+      <button id="mixNow" class="primary" style="--c:var(--fg);color:var(--bg)">Mix now ⇄</button>
+      <div class="ctl">
+        <label class="k" for="fade">Fade length <span id="fadeV">8</span> s</label>
+        <input type="range" id="fade" min="1" max="20" value="8">
+      </div>
+      <label class="toggle"><input type="checkbox" id="auto" checked> Auto-mix from queue</label>
+      <div class="status" id="status">Load a track into deck A to start.</div>
+    </section>
+
+    <section class="deck" id="deckB" style="--c:var(--b)"></section>
+  </div>
+
+  <section class="queue">
+    <h2>QUEUE</h2>
+    <form class="row" id="qForm">
+      <input type="text" id="qIn" placeholder="Paste one or more links (space or newline separated)" aria-label="Add to queue">
+      <button type="submit">Add</button>
+    </form>
+    <ol id="qList"></ol>
+    <div class="empty" id="qEmpty">Queue is empty. Add tracks here and auto-mix will cue the next one on the idle deck and fade it in before the live track ends.</div>
+  </section>
+</div>
+
+<script>
+if (location.protocol === 'file:') document.getElementById('warn').hidden = false;
+
+const $ = (s, r=document) => r.querySelector(s);
+const fmt = s => { s = Math.max(0, Math.floor(s||0)); return Math.floor(s/60)+':'+String(s%60).padStart(2,'0'); };
+
+function parseId(str){
+  str = str.trim(); if(!str) return null;
+  if (/^[\w-]{11}$/.test(str)) return str;
+  try{
+    const u = new URL(str);
+    if (u.hostname.includes('youtu.be')) return u.pathname.slice(1,12);
+    if (u.searchParams.get('v')) return u.searchParams.get('v').slice(0,11);
+    const m = u.pathname.match(/\/(shorts|embed|live)\/([\w-]{11})/); if (m) return m[2];
+  }catch(e){}
+  return null;
+}
+
+/* ---------- Decks ---------- */
+const decks = {};
+function buildDeck(key){
+  const el = $('#deck'+key);
+  el.innerHTML = `
+    <div class="deck-head"><span class="tag">DECK ${key}</span><span class="state">empty</span></div>
+    <div class="screen"><div id="yt${key}"></div></div>
+    <div class="title">—</div>
+    <div class="bar" title="Click to seek"><i></i></div>
+    <div class="time"><span class="pos">0:00</span><span class="left">-0:00</span></div>
+    <form class="row load"><input type="text" placeholder="YouTube link or ID" aria-label="Deck ${key} link" id="in${key}"><button type="submit">Load</button></form>
+    <div class="row">
+      <button class="primary play">Play</button>
+      <button class="cue">⏮ Start</button>
+      <button class="back">−10s</button><button class="fwd">+10s</button>
+    </div>
+    <div class="row" style="align-items:end">
+      <div class="ctl" style="flex:1;min-width:120px"><label class="k" for="vol${key}">Volume</label><input type="range" id="vol${key}" min="0" max="100" value="100"></div>
+      <div class="ctl"><label class="k" for="rate${key}">Speed</label><select id="rate${key}"><option value="1">1×</option></select></div>
+    </div>`;
+  const d = decks[key] = {key, el, player:null, ready:false, vol:1, gain:key==='A'?1:0, id:null};
+  el.querySelector('.load').addEventListener('submit', e=>{e.preventDefault(); const id=parseId($('#in'+key).value); if(id){loadDeck(d,id,true);} else setStatus('That doesn\'t look like a YouTube link.');});
+  el.querySelector('.play').onclick = ()=> togglePlay(d);
+  el.querySelector('.cue').onclick = ()=> d.ready && d.player.seekTo(0,true);
+  el.querySelector('.back').onclick = ()=> d.ready && d.player.seekTo(d.player.getCurrentTime()-10,true);
+  el.querySelector('.fwd').onclick = ()=> d.ready && d.player.seekTo(d.player.getCurrentTime()+10,true);
+  el.querySelector('.bar').onclick = ev=>{ if(!d.ready) return; const r=ev.currentTarget.getBoundingClientRect(); d.player.seekTo(d.player.getDuration()*(ev.clientX-r.left)/r.width,true); };
+  $('#vol'+key).oninput = e=>{ d.vol = e.target.value/100; applyVol(d); };
+  $('#rate'+key).onchange = e=> d.ready && d.player.setPlaybackRate(parseFloat(e.target.value));
+  return d;
+}
+const A = buildDeck('A'), B = buildDeck('B');
+const other = d => d===A?B:A;
+
+function applyVol(d){ if(d.ready) d.player.setVolume(Math.round(d.vol*d.gain*100)); }
+function isPlaying(d){ return d.ready && d.player.getPlayerState()===YT.PlayerState.PLAYING; }
+function togglePlay(d){ if(!d.ready||!d.id) return; isPlaying(d)?d.player.pauseVideo():d.player.playVideo(); }
+function loadDeck(d,id,autoplay){
+  d.id = id;
+  if(!d.ready){ d.pending={id,autoplay}; return; }
+  autoplay ? d.player.loadVideoById(id) : d.player.cueVideoById(id);
+  $('#rate'+d.key).value = '1';
+}
+
+window.onYouTubeIframeAPIReady = () => {
+  for (const d of [A,B]) {
+    d.player = new YT.Player('yt'+d.key, {
+      width:'100%', height:'100%',
+      playerVars:{playsinline:1, rel:0, modestbranding:1},
+      events:{
+        onReady: ()=>{ d.ready=true; applyVol(d); if(d.pending){loadDeck(d,d.pending.id,d.pending.autoplay); d.pending=null;} },
+        onStateChange: e=>{ if(e.data===YT.PlayerState.PLAYING) fillRates(d); if(e.data===YT.PlayerState.ENDED && live()===d && !mixing) mixNow(); },
+        onError: e=>{ setStatus(`Deck ${d.key}: YouTube refused this video (error ${e.data}). Embedding may be disabled by the uploader.`); if(live()===d) mixNow(); }
+      }
+    });
+  }
+};
+const tag=document.createElement('script'); tag.src='https://www.youtube.com/iframe_api'; document.head.appendChild(tag);
+
+function fillRates(d){
+  const sel=$('#rate'+d.key), cur=d.player.getPlaybackRate();
+  const rates=d.player.getAvailablePlaybackRates()||[1];
+  sel.innerHTML = rates.map(r=>`<option value="${r}" ${r===cur?'selected':''}>${r}×</option>`).join('');
+}
+
+/* ---------- Crossfader ---------- */
+let xf = 0; // 0 = full A, 1 = full B
+const live = () => xf < 0.5 ? A : B;
+function setXf(v){
+  xf = Math.min(1,Math.max(0,v));
+  $('#xf').value = Math.round(xf*1000);
+  A.gain = Math.cos(xf*Math.PI/2); B.gain = Math.sin(xf*Math.PI/2);
+  applyVol(A); applyVol(B);
+}
+$('#xf').oninput = e => { cancelFade(); setXf(e.target.value/1000); };
+$('#fade').oninput = e => $('#fadeV').textContent = e.target.value;
+
+let mixing=false, fadeTimer=null;
+function cancelFade(){ if(fadeTimer){clearInterval(fadeTimer); fadeTimer=null; mixing=false;} }
+function mixNow(){
+  const from=live(), to=other(from);
+  if(!to.id){ if(!cueNext(to)) { setStatus('Nothing to mix into. Load deck '+to.key+' or add to the queue.'); return; } }
+  cancelFade(); mixing=true;
+  to.player.playVideo();
+  const start=xf, target=to===B?1:0, dur=+$('#fade').value*1000, t0=performance.now();
+  setStatus(`Mixing ${from.key} → ${to.key} over ${dur/1000}s`);
+  fadeTimer=setInterval(()=>{
+    const p=Math.min(1,(performance.now()-t0)/dur);
+    setXf(start+(target-start)*p);
+    if(p>=1){ clearInterval(fadeTimer); fadeTimer=null; mixing=false; from.player.pauseVideo(); from.id=null; from.el.querySelector('.title').textContent='—';
+      setStatus(`Deck ${to.key} live.`); }
+  },50);
+}
+$('#mixNow').onclick = mixNow;
+
+/* ---------- Queue ---------- */
+const queue=[]; // {id,title}
+function renderQueue(){
+  const ol=$('#qList'); $('#qEmpty').hidden=queue.length>0;
+  ol.innerHTML=queue.map((q,i)=>`<li><span class="n">${i+1}</span><span class="t">${q.title}</span><button data-i="${i}" data-a="up" aria-label="Move up">↑</button><button data-i="${i}" data-a="del" aria-label="Remove">✕</button></li>`).join('');
+}
+$('#qList').onclick=e=>{ const b=e.target.closest('button'); if(!b) return; const i=+b.dataset.i;
+  if(b.dataset.a==='del') queue.splice(i,1); else if(i>0) [queue[i-1],queue[i]]=[queue[i],queue[i-1]]; renderQueue(); };
+$('#qForm').onsubmit=async e=>{
+  e.preventDefault(); const parts=$('#qIn').value.split(/\s+/); let added=0;
+  for(const p of parts){ const id=parseId(p); if(!id) continue; const q={id,title:id}; queue.push(q); added++; fetchTitle(q); }
+  $('#qIn').value=''; renderQueue(); setStatus(added?`Added ${added} to queue.`:'No valid links found.');
+};
+async function fetchTitle(q){
+  try{ const r=await fetch('https://www.youtube.com/oembed?format=json&url='+encodeURIComponent('https://www.youtube.com/watch?v='+q.id));
+    if(r.ok){ q.title=(await r.json()).title; renderQueue(); } }catch(e){}
+}
+function cueNext(d){
+  if(!queue.length||!d.ready) return false;
+  const q=queue.shift(); renderQueue(); loadDeck(d,q.id,false); return true;
+}
+
+/* ---------- Tick ---------- */
+function setStatus(t){ $('#status').textContent=t; }
+setInterval(()=>{
+  for(const d of [A,B]){
+    const el=d.el, playing=isPlaying(d);
+    el.classList.toggle('live', live()===d && playing);
+    const st=el.querySelector('.state'); st.textContent=!d.id?'empty':playing?(live()===d?'live':'playing'):'cued'; st.classList.toggle('on',playing);
+    el.querySelector('.play').textContent=playing?'Pause':'Play';
+    if(!d.ready||!d.id) continue;
+    const t=d.player.getCurrentTime()||0, dur=d.player.getDuration()||0;
+    const title=d.player.getVideoData?.().title; if(title) el.querySelector('.title').textContent=title;
+    el.querySelector('.pos').textContent=fmt(t);
+    el.querySelector('.left').textContent='-'+fmt(dur-t);
+    el.querySelector('.bar i').style.width=dur?(t/dur*100)+'%':'0';
+  }
+  // Auto-mix: keep idle deck cued, start fade when live track is near its end.
+  if($('#auto').checked && !mixing){
+    const L=live(), I=other(L);
+    if(isPlaying(L) && !I.id) cueNext(I);
+    if(isPlaying(L) && I.id){
+      const rate=L.player.getPlaybackRate()||1;
+      const remaining=(L.player.getDuration()-L.player.getCurrentTime())/rate;
+      if(L.player.getDuration()>0 && remaining <= +$('#fade').value + 0.5) mixNow();
+    }
+  }
+},250);
+
+document.addEventListener('keydown',e=>{
+  if(e.target.matches('input[type=text],select')) return;
+  if(e.code==='Space'){ e.preventDefault(); togglePlay(live()); }
+  if(e.key==='m'||e.key==='M') mixNow();
+});
+renderQueue();
+</script>
+</body>
+</html>
